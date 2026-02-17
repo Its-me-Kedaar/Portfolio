@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Kedaarnath Bandaru — backend / distributed systems</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+  <style>
+    /* ---------- root & reset ---------- */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    :root{
+      --bg: #080c10;
+      --surface: #0d1117;
+      --surface2: #161b22;
+      --border: #21262d;
+      --accent: #00e5a0;
+      --accent2: #0096ff;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --glass: rgba(255,255,255,0.02);
+      --transition: cubic-bezier(0.23,1,0.32,1);
+    }
+    body{
+      font-family: 'DM Sans', sans-serif;
+      color:var(--text);
+      background: var(--bg);
+      line-height:1.6;
+      min-height:100vh;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    /* small helpers */
+    a { color:inherit; text-decoration:none; }
+    img { max-width:100%; display:block; }
+
+    /* custom cursor & spotlight (disabled on small screens) */
+    .cursor-dot{
+      pointer-events:none; position:fixed; left:0; top:0;
+      width:8px; height:8px; border-radius:50%; background:var(--accent);
+      box-shadow:0 0 16px rgba(0,229,160,0.35); transform:translate(-50%,-50%);
+      z-index:9999; transition:transform .08s linear, width .12s ease, height .12s ease, opacity .12s;
+      opacity:0.95;
+    }
+    .spotlight{
+      pointer-events:none; position:fixed; inset:0; z-index:2;
+      background: radial-gradient(circle at var(--x,50%) var(--y,50%), rgba(0,229,160,0.06), transparent 25%);
+      mix-blend-mode: screen;
+      transition: background .08s linear;
+    }
+
+    /* progress */
+    .scroll-progress{
+      position:fixed; top:0; left:0; height:3px; width:0%;
+      background: linear-gradient(90deg,var(--accent),var(--accent2));
+      z-index:1001; box-shadow:0 6px 24px rgba(0,229,160,0.08);
+      transition:width .12s linear;
+    }
+
+    /* noise overlay */
+    body::before{
+      content:""; position:fixed; inset:0; pointer-events:none; z-index:999;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.02'/%3E%3C/svg%3E");
+      opacity:0.5;
+    }
+
+    /* NAV */
+    nav{
+      position:fixed; left:20px; right:20px; top:12px; z-index:1000;
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      padding:12px 20px; border-radius:60px;
+      background:linear-gradient(180deg, rgba(8,12,16,0.68), rgba(8,12,16,0.42));
+      border:1px solid rgba(255,255,255,0.03); backdrop-filter: blur(10px) saturate(120%);
+      box-shadow:0 14px 40px rgba(0,0,0,0.6);
+      transition:transform .32s var(--transition);
+    }
+    .nav-logo{ font-family:'Space Mono'; color:var(--accent); font-weight:700; letter-spacing:1px; }
+    .nav-links{ display:flex; gap:26px; align-items:center; list-style:none; }
+    .nav-links a{ font-family:'Space Mono'; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; padding:4px 0; position:relative; }
+    .nav-links a::before{ content:''; position:absolute; left:0; bottom:-6px; height:2px; width:0; background:var(--accent); transition:width .28s var(--transition); border-radius:2px; }
+    .nav-links a:hover{ color:var(--accent); }
+    .nav-links a:hover::before{ width:100%; }
+    .nav-hidden{ transform:translateY(-140%); }
+
+    /* SECTION COMMON */
+    section{ padding:100px 60px; position:relative; z-index:5; }
+    .section-header{ display:flex; align-items:center; gap:18px; margin-bottom:48px; }
+    .section-num{ font-family:'Space Mono'; color:var(--accent); letter-spacing:2px; font-size:13px; }
+    .section-title{ font-family:'Syne'; font-size:clamp(26px,5vw,44px); font-weight:800; color:var(--text); }
+
+    /* HERO */
+    #hero{ min-height:100vh; display:flex; align-items:center; padding:0 60px; position:relative; overflow:hidden; }
+    .hero-grid{
+      position:absolute; inset:0; background-image: linear-gradient(rgba(0,229,160,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,229,160,0.03) 1px, transparent 1px);
+      background-size:60px 60px; mask-image: radial-gradient(circle at 50% 50%, black 60%, transparent 100%);
+      opacity:0.6; transform:translateY(0); pointer-events:none;
+    }
+    .hero-glow{ position:absolute; width:640px; height:640px; border-radius:50%; background:radial-gradient(circle, rgba(0,229,160,0.08), transparent 45%); top:-160px; right:-120px; filter:blur(60px); }
+    .hero-glow2{ position:absolute; width:420px; height:420px; border-radius:50%; background:radial-gradient(circle, rgba(0,150,255,0.06), transparent 45%); bottom:-60px; left:-80px; filter:blur(60px); }
+
+    .hero-container{ position:relative; z-index:10; width: 100%; max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 60px; }
+    .hero-content{ flex: 1.2; max-width: 800px; }
+    
+    .hero-image-wrapper{ flex: 0.8; display: flex; justify-content: flex-end; }
+    .hero-image-wrapper img{ width: 100%; max-width: 400px; border-radius: 20px; box-shadow: 0 24px 50px rgba(0,0,0,0.5); border: 1px solid var(--border); object-fit: cover; aspect-ratio: 4/5; }
+
+    .hero-tag{ font-family:'Space Mono'; color:var(--accent); letter-spacing:2px; font-size:12px; margin-bottom:18px; display:inline-flex; gap:8px; align-items:center; }
+    .hero-tag::before{ content:''; display:inline-block; width:28px; height:1px; background:var(--accent); }
+
+    .hero-name{ font-family:'Syne'; font-size:clamp(44px, 9vw, 110px); font-weight:800; line-height:0.92; letter-spacing:-3px; margin:8px 0; color:var(--text); text-shadow:0 0 18px rgba(0,229,160,0.12); }
+    .hero-name .accent-word{ color:transparent; -webkit-text-stroke:1.6px var(--accent); }
+
+    .hero-tagline{ font-family:'Space Mono'; color:var(--muted); max-width:72ch; margin-top:18px; border-left:3px solid rgba(0,229,160,0.06); padding-left:20px; line-height:1.8; }
+
+    .hero-cta{ margin-top:36px; display:flex; gap:14px; }
+    .btn{ padding:14px 28px; font-family:'Space Mono'; font-weight:700; letter-spacing:1.6px; text-transform:uppercase; border-radius:12px; cursor:pointer; border:0; }
+    .btn-primary{ background:linear-gradient(90deg,var(--accent),var(--accent2)); color:#061017; box-shadow:0 12px 36px rgba(0,229,160,0.12); }
+    .btn-primary:hover{ transform:translateY(-4px); }
+    .btn-secondary{ background:transparent; color:var(--text); border:1px solid var(--border); }
+    .btn-secondary:hover{ color:var(--accent); border-color:var(--accent); transform:translateY(-4px); }
+
+    .hero-stats{ display:flex; gap:48px; margin-top:64px; padding-top:36px; border-top:1px solid var(--border); flex-wrap:wrap; }
+    .stat-item{ min-width:160px; }
+    .stat-num{ font-family:'Syne'; font-size:38px; font-weight:800; color:var(--text); display:block; }
+    .stat-num span{ color:var(--accent); font-size:24px; }
+    .stat-label{ font-family:'Space Mono'; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:1px; }
+
+    /* fade-in */
+    .fade-in{ opacity:0; transform:translateY(18px); transition:opacity .7s var(--transition), transform .7s var(--transition); }
+    .fade-in.visible{ opacity:1; transform:none; }
+
+    /* ABOUT */
+    .about-grid{ display:grid; grid-template-columns:1fr 420px; gap:60px; align-items:start; }
+
+    .terminal-box{ background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; box-shadow:0 22px 50px rgba(0,0,0,0.6); }
+    .terminal-header{ padding:12px 16px; background:var(--surface2); font-family:'Space Mono'; color:var(--muted); }
+    .terminal-body{ padding:18px; font-family:'Space Mono'; color:var(--muted); font-size:13px; white-space:pre-wrap; }
+
+    .info-row{ display:flex; justify-content:space-between; gap:12px; padding:12px 8px; border-bottom:1px solid rgba(255,255,255,0.02); font-size:14px; color:var(--muted); }
+    .info-row:last-child{ border-bottom:0; }
+
+    /* SKILLS */
+    .skills-categories{ display:grid; grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); gap:12px; }
+    .skill-cat{ background:var(--surface); padding:26px; border:1px solid var(--border); border-radius:12px; transition:transform .28s var(--transition), box-shadow .28s; }
+    .skill-cat:hover{ transform:translateY(-8px); box-shadow:0 24px 48px rgba(0,0,0,0.6); border-color:rgba(0,229,160,0.08); }
+    .skill-title{ font-family:'Space Mono'; color:var(--accent); font-size:12px; margin-bottom:12px; }
+    .pill{ display:inline-block; padding:6px 10px; margin:6px 8px 0 0; border-radius:999px; background:var(--glass); color:var(--muted); font-family:'Space Mono'; font-size:12px; }
+
+    /* EXPERIENCE timeline */
+    .timeline{ position:relative; padding-left:18px; }
+    .timeline::before{ content:''; position:absolute; left:8px; top:0; bottom:0; width:2px; background:linear-gradient(180deg, rgba(255,255,255,0.03), transparent); }
+    .exp-item{ position:relative; padding:16px 20px; margin-bottom:20px; border-radius:10px; background:var(--surface); border:1px solid var(--border); }
+    .exp-item::before{ content:''; position:absolute; left:-30px; top:22px; width:12px; height:12px; border-radius:50%; background:var(--accent); box-shadow:0 6px 20px rgba(0,229,160,0.12); }
+    .exp-role{ font-family:'Syne'; font-size:18px; font-weight:700; color:var(--text); margin-bottom:6px; }
+    .exp-company{ font-family:'Space Mono'; color:var(--muted); font-size:13px; margin-bottom:10px; }
+    .exp-bullets{ color:var(--muted); margin-left:0; padding-left:0; list-style:none; }
+
+    /* PROJECTS */
+    .projects-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(300px,1fr)); gap:12px; }
+    .project-card{ background:var(--surface); border:1px solid var(--border); padding:20px; border-radius:12px; transition:transform .28s var(--transition), box-shadow .28s; transform-origin:center; }
+    .project-card:hover{ transform:translateY(-8px) rotateX(1deg); box-shadow:0 28px 60px rgba(0,0,0,0.6); border-color:rgba(0,229,160,0.06); }
+    .project-context{ font-family:'Space Mono'; color:var(--accent2); font-size:12px; text-transform:uppercase; margin-bottom:6px; }
+    .project-desc{ color:var(--muted); margin-top:12px; font-size:14px; }
+
+    /* CONTACT */
+    .contact-grid{ display:grid; grid-template-columns:1fr 420px; gap:40px; align-items:start; }
+    .contact-link{ display:flex; gap:12px; align-items:center; padding:12px; background:var(--glass); border:1px solid var(--border); border-radius:10px; color:var(--muted); }
+    .contact-form-title{ font-family:'Syne'; font-size:20px; margin-bottom:8px; color:var(--text); }
+    .form-input{ width:100%; padding:12px; border-radius:10px; margin-bottom:10px; background:var(--surface2); border:1px solid var(--border); color:var(--text); }
+    .form-submit{ padding:12px 14px; border-radius:10px; border:0; background:var(--accent); color:#021018; font-weight:700; cursor:pointer; }
+
+    /* footer */
+    footer{ background:var(--surface); border-top:1px solid var(--border); padding:26px 60px; display:flex; justify-content:space-between; align-items:center; color:var(--muted); }
+
+    /* responsive */
+    @media (max-width:1000px){
+      .hero-container { flex-direction: column-reverse; padding-top: 80px; gap: 40px; }
+      .hero-image-wrapper { justify-content: flex-start; }
+      .hero-image-wrapper img { max-width: 260px; }
+      .about-grid, .contact-grid{ grid-template-columns:1fr; }
+      nav{ left:12px; right:12px; }
+      .nav-links{ display:none; }
+      .hero-stats{ gap:20px; }
+      .cursor-dot, .spotlight{ display:none; } /* hide decorative on small screens */
+    }
+    @media (max-width:600px){
+      section{ padding:60px 18px; }
+      .hero-name{ font-size:48px; }
+      footer{ flex-direction:column; gap:8px; text-align:center; padding:20px;}
+    }
+
+    /* reduced motion */
+    @media (prefers-reduced-motion: reduce){
+      * { transition: none !important; animation: none !important; }
+    }
+
+  </style>
+</head>
+<body>
+
+  <div class="cursor-dot" id="cursorDot" aria-hidden="true"></div>
+  <div class="spotlight" id="spotlight" aria-hidden="true"></div>
+  <div class="scroll-progress" id="scrollProgress" aria-hidden="true"></div>
+
+  <nav id="navbar">
+    <div class="nav-left">
+      <a href="#hero" class="nav-logo">KB<span style="color:var(--muted); margin-left:8px; font-family:Space Mono; font-weight:400">.dev</span></a>
+    </div>
+
+    <ul class="nav-links" role="navigation" aria-label="Primary">
+      <li><a href="#about">About</a></li>
+      <li><a href="#skills">Skills</a></li>
+      <li><a href="#experience">Experience</a></li>
+      <li><a href="#projects">Projects</a></li>
+      <li><a href="#contact">Contact</a></li>
+    </ul>
+  </nav>
+
+  <section id="hero" aria-label="Hero">
+    <div class="hero-grid" aria-hidden="true"></div>
+    <div class="hero-glow" aria-hidden="true"></div>
+    <div class="hero-glow2" aria-hidden="true"></div>
+
+    <div class="hero-container">
+      <div class="hero-content">
+        <div class="hero-tag">Backend Engineer</div>
+        <h1 class="hero-name">Kedaar<br><span class="accent-word">Nath</span></h1>
+
+        <p class="hero-tagline">
+          Building scalable distributed systems with Java &amp; Spring Boot — Event-Driven Architectures — Cloud Infrastructure on GCP.
+          3 years at Ericsson working on enterprise automation, alarm correlation, and resilient microservices.
+        </p>
+
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="#projects">View Projects →</a>
+          <a class="btn btn-secondary" href="mailto:Kedaarnath13@gmail.com">Get In Touch</a>
+        </div>
+
+        <div class="hero-stats" aria-hidden="true">
+          <div class="stat-item"><span class="stat-num">3<span></span></span><div class="stat-label">Years Experience</div></div>
+          <div class="stat-item"><span class="stat-num">40<span>%</span></span><div class="stat-label">Manual Effort Reduced</div></div>
+          <div class="stat-item"><span class="stat-num">25<span>%</span></span><div class="stat-label">Cloud Cost Savings</div></div>
+          <div class="stat-item"><span class="stat-num">GCP</span><div class="stat-label">Cloud Migration</div></div>
+        </div>
+      </div>
+      
+      <div class="hero-image-wrapper fade-in">
+        <img src="Profile.jpg" alt="Kedaarnath Bandaru Profile Picture">
+      </div>
+    </div>
+  </section>
+
+  <section id="about">
+    <div class="section-header fade-in"><div class="section-num">01 /</div><div class="section-title">About Me</div></div>
+
+    <div class="about-grid">
+      <div class="about-text fade-in">
+        <p style="margin-bottom:12px">I'm a <strong>Backend Engineer at Ericsson</strong> with a passion for building systems that scale. My work sits at the intersection of distributed computing, cloud infrastructure, and automation engineering.</p>
+
+        <p style="margin-bottom:12px">Over 3 years, I've worked on enterprise-grade automation platforms serving global telecom customers. I specialize in <strong>Java · Spring Boot · Microservices</strong>, designing event-driven architectures with Kafka and RabbitMQ, and deploying production systems on GCP.</p>
+
+        <div style="margin-top:18px; border-radius:12px; overflow:hidden; border:1px solid rgba(255,255,255,0.02);">
+          <div style="background:var(--surface); padding:12px 14px; color:var(--muted); font-family:Space Mono; font-size:13px;">Profile</div>
+          <div>
+            <div class="info-row"><span>Location</span><span>Noida, Uttar Pradesh (Current)</span></div>
+            <div class="info-row"><span>Permanent Address</span><span>Palamaner, Chittoor District, Andhra Pradesh, India</span></div>
+            <div class="info-row"><span>Email</span><span><a href="mailto:Kedaarnath13@gmail.com">Kedaarnath13@gmail.com</a></span></div>
+            <div class="info-row"><span>Phone</span><span>+91 94418 14141</span></div>
+            <div class="info-row"><span>LinkedIn</span><span><a href="https://linkedin.com/in/kedaar-nath-1ba878195" target="_blank" rel="noopener">linkedin.com/in/kedaar-nath</a></span></div>
+            <div class="info-row"><span>Status</span><span style="color:var(--accent)">● Open to Opportunities</span></div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="about-right fade-in">
+        <div class="terminal-box" role="region" aria-label="profile">
+          <div class="terminal-header">kedaarnath.json</div>
+          <div class="terminal-body">
+{
+  "name": "Kedaarnath Bandaru",
+  "role": "Backend Engineer",
+  "company": "Ericsson Global India",
+  "experience": "3 years",
+  "primaryStack": ["Java", "Spring Boot", "Microservices", "Kafka"],
+  "cloud": ["GCP", "AWS"],
+  "certifications": ["AWS Cloud Practitioner"],
+  "award": "Young Talent Forum 2025",
+  "permanentAddress": "Palamaner, Chittoor District, Andhra Pradesh, India",
+  "openToWork": true
+}
+          </div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <section id="skills">
+    <div class="section-header fade-in"><div class="section-num">02 /</div><div class="section-title">Technical Skills</div></div>
+
+    <div class="skills-categories fade-in" aria-hidden="false">
+      <div class="skill-cat">
+        <div class="skill-title">Languages & Frameworks</div>
+        <div class="pill">Java 8/11</div><div class="pill">Python</div><div class="pill">JavaScript</div>
+        <div class="pill">SQL</div><div class="pill">Bash</div><div class="pill">Groovy</div>
+      </div>
+
+      <div class="skill-cat">
+        <div class="skill-title">Backend & APIs</div>
+        <div class="pill">Spring Boot</div><div class="pill">Spring Framework</div><div class="pill">Hibernate / JPA</div>
+        <div class="pill">Node.js</div><div class="pill">RESTful APIs</div><div class="pill">Microservices</div>
+        <div class="pill">gRPC</div><div class="pill">OAuth2</div>
+      </div>
+
+      <div class="skill-cat">
+        <div class="skill-title">Databases & Caching</div>
+        <div class="pill">Cassandra</div><div class="pill">MySQL</div><div class="pill">MariaDB</div>
+        <div class="pill">PostgreSQL</div><div class="pill">Redis</div><div class="pill">NoSQL Data Modeling</div>
+      </div>
+
+      <div class="skill-cat">
+        <div class="skill-title">Messaging & Streaming</div>
+        <div class="pill">Apache Kafka</div><div class="pill">RabbitMQ</div>
+        <div class="pill">Event-Driven Architecture</div><div class="pill">ESB Integration</div>
+      </div>
+
+      <div class="skill-cat">
+        <div class="skill-title">Cloud & DevOps</div>
+        <div class="pill">GCP</div><div class="pill">AWS</div><div class="pill">Docker</div>
+        <div class="pill">Kubernetes</div><div class="pill">Linux (RHEL)</div><div class="pill">CI/CD</div>
+        <div class="pill">Ansible</div><div class="pill">Git</div><div class="pill">Maven</div><div class="pill">Gradle</div>
+      </div>
+
+      <div class="skill-cat">
+        <div class="skill-title">Tools, Monitoring & Frontend</div>
+        <div class="pill">WildFly</div><div class="pill">Tomcat</div><div class="pill">Elasticsearch</div>
+        <div class="pill">Zabbix</div><div class="pill">Jira</div><div class="pill">Prometheus</div>
+        <div class="pill">Grafana</div><div class="pill">React</div><div class="pill">HTML5</div>
+        <div class="pill">CSS3</div><div class="pill">Bootstrap</div><div class="pill">TypeScript</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="experience">
+    <div class="section-header fade-in"><div class="section-num">03 /</div><div class="section-title">Work Experience</div></div>
+
+    <div class="timeline fade-in">
+      <article class="exp-item">
+        <div class="exp-role">Engineer</div>
+        <div class="exp-company">Ericsson Global India · Noida, Uttar Pradesh — <span style="font-family:Space Mono; color:var(--muted)">Feb 2023 — Present</span></div>
+        <ul class="exp-bullets">
+          <li>Developed and maintained <strong>Spring Boot microservices</strong> for enterprise automation platform integrating Kafka, RabbitMQ, and Elasticsearch for real-time alarm processing.</li>
+          <li>Architected runbook automation workflows using Java, Python, and Groovy — reducing manual interventions by <strong>40%</strong>.</li>
+          <li>Optimized Java Correlation Engine (JCE) with Cassandra DB for high-throughput time-series alarm storage, processing thousands of alarms/minute.</li>
+          <li>Led GCP migration with zero-downtime cutover and ~25% infrastructure cost reduction.</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <section id="projects">
+    <div class="section-header fade-in"><div class="section-num">04 /</div><div class="section-title">Projects</div></div>
+
+    <div class="projects-grid fade-in">
+      <div class="project-card">
+        <div class="project-context">Resolve Action Pro · Ericsson · 2023–Present</div>
+        <h4 style="margin-top:6px; margin-bottom:6px">JAVA Automations on Resolve Platform</h4>
+        <p class="project-desc">Enterprise-grade rule-based automation platform managing telecom incidents across 2G/3G/4G networks. Built automation workflows for P2/P3 incident lifecycle and ESB integrations.</p>
+        <ul style="color:var(--muted); margin-top:10px;">
+          <li>Rule-based automation using Java &amp; Groovy with OneFM ITSM and RTPM integrations.</li>
+          <li>Alarm-driven First-Time-Fix workflows and multi-vendor command orchestration.</li>
+        </ul>
+        <div style="margin-top:10px"><span class="pill">Java</span><span class="pill">Kafka</span><span class="pill">Cassandra</span><span class="pill">Automation</span><span class="pill">Wildfly</span><span class="pill">CassandraDB</span><span class="pill">MariaDB</span><span class="pill">Linux</span><span class="pill">GCP</span><span class="pill">SSL</span><span class="pill">Bash</span><span class="pill">Groovy</span></div>
+      </div>
+
+      <div class="project-card">
+        <div class="project-context">Ericsson · 2023–Present</div>
+        <h4 style="margin-top:6px; margin-bottom:6px">Java Correlation Engine</h4>
+        <p class="project-desc">High-availability event correlation engine processing thousands of alarms per minute across multi-region clusters.</p>
+        <ul style="color:var(--muted); margin-top:10px;">
+          <li>Optimized Cassandra queries and performed JVM tuning for reliability and failover.</li>
+          <li>Managed 3–5 node clustered deployments with OAuth2 AD authentication.</li>
+        </ul>
+        <div style="margin-top:10px"><span class="pill">Spring Boot</span><span class="pill">WildFly</span><span class="pill">MariaDB</span><span class="pill">CassandraDB</span></div>
+      </div>
+
+      <div class="project-card">
+        <div class="project-context">VIT Chennai · Oct 2022 – Jan 2023</div>
+        <h4 style="margin-top:6px; margin-bottom:6px">Stock Market Prediction System</h4>
+        <p class="project-desc">ML-based system for stock trend classification using ensemble methods and LSTM; interactive Streamlit dashboard.</p>
+        <ul style="color:var(--muted); margin-top:10px;">
+          <li>85% accuracy with Random Forest ensemble; LSTM improved long-term prediction for volatile stocks.</li>
+        </ul>
+        <div style="margin-top:10px"><span class="pill">Python</span><span class="pill">LSTM</span></div>
+      </div>
+
+      <div class="project-card">
+        <div class="project-context">VIT Chennai · Jul – Dec 2021</div>
+        <h4 style="margin-top:6px; margin-bottom:6px">Vehicle Breakdown Assist</h4>
+        <p class="project-desc">Location-based web app connecting users with nearby mechanics via Google Maps API and real-time geolocation.</p>
+        <div style="margin-top:10px"><span class="pill">JavaScript</span><span class="pill">Google Maps API</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="certifications">
+    <div class="section-header fade-in"><div class="section-num">05 /</div><div class="section-title">Certifications & Awards</div></div>
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px;">
+      <div class="project-card fade-in">
+        <div style="font-weight:700; margin-bottom:8px">AWS Certified Cloud Practitioner</div>
+        <div style="color:var(--muted)">Amazon Web Services · Issued Jul 2022 · ID: B6TLZJ6JP14QQPG3</div>
+      </div>
+      <div class="project-card fade-in">
+        <div style="font-weight:700; margin-bottom:8px">Linux Administration Training</div>
+        <div style="color:var(--muted)">Ericsson Internal · Issued 2024</div>
+      </div>
+    </div>
+
+    <div style="margin-top:18px" class="project-card fade-in">
+      <div style="display:flex; align-items:center; gap:16px">
+        <div style="font-size:28px">🏆</div>
+        <div>
+          <div style="font-weight:700">Ericsson Young Talent Forum — Final Selectee</div>
+          <div style="color:var(--muted)">Recognized among top emerging talent company-wide for technical excellence and leadership potential — 2025</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="education">
+    <div class="section-header fade-in"><div class="section-num">06 /</div><div class="section-title">Education</div></div>
+
+    <div class="project-card fade-in" style="display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start;">
+      <div>
+        <div style="font-weight:800; font-family:Syne; font-size:22px">Bachelor of Technology</div>
+        <div style="color:var(--accent); margin-top:6px; font-family:Space Mono">Vellore Institute of Technology</div>
+        <div style="color:var(--muted); margin-top:6px">Computer Science &amp; Engineering · 2019 – 2023 · Chennai, Tamil Nadu</div>
+      </div>
+      <div>
+        <div style="font-family:Space Mono; color:var(--muted); font-size:12px; margin-bottom:8px">Relevant Coursework</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; color:var(--muted)">
+          <div>Data Structures & Algorithms</div><div>Database Management Systems</div>
+          <div>Object-Oriented Programming</div><div>Full Stack Development</div>
+          <div>Machine Learning & AI</div><div>Computer Networks</div>
+          <div>Cyber Security</div><div>System Design</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="contact">
+    <div class="section-header fade-in"><div class="section-num">07 /</div><div class="section-title">Let's Connect</div></div>
+
+    <div class="contact-grid">
+      <div class="fade-in">
+        <h3 style="font-family:Syne; font-size:30px; margin-bottom:12px">Open to<br><span style="color:var(--accent)">Opportunities</span></h3>
+        <p style="color:var(--muted); margin-bottom:18px">I'm actively looking for backend and full-stack roles focused on scalable, high-impact systems. If you're building something interesting — let's talk.</p>
+
+        <a class="contact-link" href="mailto:Kedaarnath13@gmail.com"><div style="font-size:18px">✉️</div><div><div style="font-family:Space Mono; color:var(--muted); font-size:12px">Email</div><div style="font-weight:700">Kedaarnath13@gmail.com</div></div></a>
+
+        <a class="contact-link" href="tel:+919441814141"><div style="font-size:18px">📞</div><div><div style="font-family:Space Mono; color:var(--muted); font-size:12px">Phone</div><div style="font-weight:700">+91 94418 14141</div></div></a>
+
+        <div class="contact-link"><div style="font-size:18px">📍</div><div><div style="font-family:Space Mono; color:var(--muted); font-size:12px">Location</div><div style="font-weight:700">Noida (Current) · Palamaner, AP (Permanent)</div></div></div>
+      </div>
+
+      <aside class="project-card fade-in">
+        <div class="contact-form-title">Send a message</div>
+        <form id="contactForm" style="margin-top:12px; display:flex; flex-direction:column;">
+          <input class="form-input" name="name" placeholder="Your name" required>
+          <input class="form-input" name="email" type="email" placeholder="you@company.com" required>
+          <input class="form-input" name="subject" placeholder="Subject">
+          <textarea class="form-input" name="message" rows="5" placeholder="Hi Kedaarnath, I'd like to discuss..."></textarea>
+          <button type="submit" class="form-submit" style="margin-top:8px">Send Message →</button>
+          <div id="sentMsg" role="status" aria-live="polite" style="color:var(--accent); margin-top:8px; display:none">✓ Message sent — I’ll get back to you.</div>
+        </form>
+      </aside>
+    </div>
+  </section>
+
+  <footer>
+    <div>© 2025 <strong style="color:var(--accent)">Kedaarnath Bandaru</strong>. All rights reserved.</div>
+    <div style="font-family:Space Mono; color:var(--muted)">Built with ♥ · Backend Engineer · Noida, India</div>
+  </footer>
+
+  <script>
+    // Fade-in observer
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }});
+    }, { threshold: 0.12 });
+    document.querySelectorAll('.fade-in').forEach(el => io.observe(el));
+
+    // Custom cursor & spotlight (disabled on small screens and touch)
+    const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    if (!isTouch && window.innerWidth > 900 && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const cursor = document.getElementById('cursorDot');
+      const spotlight = document.getElementById('spotlight');
+      document.addEventListener('mousemove', (e) => {
+        cursor.style.left = e.clientX + 'px';
+        cursor.style.top = e.clientY + 'px';
+        spotlight.style.setProperty('--x', e.clientX + 'px');
+        spotlight.style.setProperty('--y', e.clientY + 'px');
+      }, { passive: true });
+
+      // small hover effect: enlarge cursor on interactive elements
+      const interactive = 'a, button, input, textarea, .btn';
+      document.querySelectorAll(interactive).forEach(el => {
+        el.addEventListener('mouseenter', () => { cursor.style.transform = 'translate(-50%,-50%) scale(2)'; });
+        el.addEventListener('mouseleave', () => { cursor.style.transform = 'translate(-50%,-50%) scale(1)'; });
+      });
+    } else {
+      // hide decorative elements for touch/small screens
+      document.getElementById('cursorDot').style.display = 'none';
+      document.getElementById('spotlight').style.display = 'none';
+    }
+
+    // Scroll progress & nav hide/show
+    const progress = document.getElementById('scrollProgress');
+    const navbar = document.getElementById('navbar');
+    let lastScroll = 0;
+    window.addEventListener('scroll', () => {
+      const scrolled = window.scrollY;
+      const height = document.documentElement.scrollHeight - window.innerHeight;
+      const pct = (height > 0) ? (scrolled / height) * 100 : 0;
+      progress.style.width = pct + '%';
+
+      if (scrolled > lastScroll && scrolled > 220) navbar.classList.add('nav-hidden');
+      else navbar.classList.remove('nav-hidden');
+      lastScroll = scrolled <= 0 ? 0 : scrolled;
+    }, { passive: true });
+
+    // Simple contact form demo behavior (no backend)
+    const form = document.getElementById('contactForm');
+    const sentMsg = document.getElementById('sentMsg');
+    form?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      sentMsg.style.display = 'block';
+      form.reset();
+      setTimeout(() => { sentMsg.style.display = 'none'; }, 3500);
+    });
+
+    // small tilt effect on project cards (mouse only)
+    if (!isTouch && !window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+      document.querySelectorAll('.project-card').forEach(card => {
+        card.addEventListener('mousemove', (ev) => {
+          const r = card.getBoundingClientRect();
+          const px = (ev.clientX - r.left) / r.width;
+          const py = (ev.clientY - r.top) / r.height;
+          const rx = (py - 0.5) * 6; // tilt strength
+          const ry = (px - 0.5) * -6;
+          card.style.transform = `translateY(-6px) rotateX(${rx}deg) rotateY(${ry}deg)`;
+        });
+        card.addEventListener('mouseleave', () => { card.style.transform = ''; });
+      });
+    }
+
+    // Smooth navigation active link highlight
+    const navLinks = document.querySelectorAll('.nav-links a');
+    const sections = document.querySelectorAll('section[id], #hero');
+    function updateActiveNav(){
+      const offset = window.scrollY + 140;
+      let current = 'hero';
+      sections.forEach(s => {
+        if (s.offsetTop <= offset) current = s.id || 'hero';
+      });
+      navLinks.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + current));
+    }
+    window.addEventListener('scroll', updateActiveNav, { passive: true });
+    updateActiveNav();
+
+  </script>
+</body>
+</html>
